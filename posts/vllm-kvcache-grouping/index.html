@@ -34,9 +34,16 @@
     }
 
     .shell {
-      width: min(980px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 64px;
+    }
+
+    .article-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 28px;
+      align-items: start;
     }
 
     .topbar {
@@ -143,16 +150,8 @@
       font-size: 14px;
     }
 
-    .article-body {
-      display: grid;
-      grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
-      gap: 28px;
-      padding: 40px 48px 48px;
-      align-items: start;
-    }
-
     .content {
-      min-width: 0;
+      padding: 40px 56px 48px;
       font-size: 17px;
     }
 
@@ -162,7 +161,8 @@
       padding: 20px 22px;
       border: 1px solid rgba(21, 35, 56, 0.08);
       border-radius: 18px;
-      background: rgba(15, 108, 189, 0.04);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
     }
 
     .toc-title {
@@ -298,15 +298,15 @@
         padding-top: 20px;
       }
 
-      .hero,
-      .article-body {
-        padding-left: 20px;
-        padding-right: 20px;
-      }
-
-      .article-body {
+      .article-layout {
         grid-template-columns: 1fr;
         gap: 20px;
+      }
+
+      .hero,
+      .content {
+        padding-left: 20px;
+        padding-right: 20px;
       }
 
       .toc {
@@ -337,30 +337,19 @@
       </nav>
     </div>
 
-    <article class="article">
-      <header class="hero">
-        <div class="eyebrow">vLLM / Inference</div>
-        <h1>vLLM 中的几种 KVCache 分组机制</h1>
-        <p class="summary">整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。</p>
-        <div class="meta">
-          <span>2026-06-09</span>
-          <span>vLLM</span>
+    <div class="article-layout">
+      <article class="article">
+        <header class="hero">
+          <div class="eyebrow">vLLM / Inference</div>
+          <h1>vLLM 中的几种 KVCache 分组机制</h1>
+          <p class="summary">整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。</p>
+          <div class="meta">
+            <span>2026-06-09</span>
+            <span>vLLM</span>
           <span>Inference</span>
-        </div>
-      </header>
+          </div>
+        </header>
 
-      <div class="article-body">
-        <section class="toc" aria-labelledby="toc-title">
-          <div class="toc-title" id="toc-title">On This Page</div>
-          <nav class="toc-links" aria-label="Table of contents">
-          <a class="toc-item" href="#统一的-kvcachespec-组">统一的 KVCacheSpec 组</a>
-          <a class="toc-item" href="#类型统一的-kvcachespec-组">类型统一的 KVCacheSpec 组</a>
-          <a class="toc-item" href="#混合-kvcachespec-组">混合 KVCacheSpec 组</a>
-          <a class="toc-subitem" href="#首先理解为什么有这个问题">首先理解为什么有这个问题。</a>
-          <a class="toc-subitem" href="#uniformkvcachespecs-方案分析">UniformKVCacheSpecs 方案分析</a>
-          <a class="toc-subitem" href="#hma">HMA</a>
-          </nav>
-        </section>
         <div class="content">
           <p>KVCache 的分组是 HMA 中非常重要的部分，HMA 是为了解决在混合 Attention 模型下的 KVCache 高效管理诞生的技术。其核心在于，通过分组实现两种 Attention 类型对应的 KVCache 共享同一块 Buffer。</p>
         <p>首先统一语言，这一节中，KVCache 类型指不同的 <code>KVCacheSpec</code>，大小指 一个 block 占的物理内存字节数，通常为</p>
@@ -399,8 +388,19 @@
             <div class="footer-note">Generated from markdown source.</div>
           </div>
         </div>
-      </div>
-    </article>
+      </article>
+      <section class="toc" aria-labelledby="toc-title">
+          <div class="toc-title" id="toc-title">On This Page</div>
+          <nav class="toc-links" aria-label="Table of contents">
+          <a class="toc-item" href="#统一的-kvcachespec-组">统一的 KVCacheSpec 组</a>
+          <a class="toc-item" href="#类型统一的-kvcachespec-组">类型统一的 KVCacheSpec 组</a>
+          <a class="toc-item" href="#混合-kvcachespec-组">混合 KVCacheSpec 组</a>
+          <a class="toc-subitem" href="#首先理解为什么有这个问题">首先理解为什么有这个问题。</a>
+          <a class="toc-subitem" href="#uniformkvcachespecs-方案分析">UniformKVCacheSpecs 方案分析</a>
+          <a class="toc-subitem" href="#hma">HMA</a>
+          </nav>
+        </section>
+    </div>
   </div>
 </body>
 </html>

@@ -57,9 +57,16 @@ ARTICLE_STYLE = """<!DOCTYPE html>
     }}
 
     .shell {{
-      width: min(980px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 64px;
+    }}
+
+    .article-layout {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 28px;
+      align-items: start;
     }}
 
     .topbar {{
@@ -166,16 +173,8 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       font-size: 14px;
     }}
 
-    .article-body {{
-      display: grid;
-      grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
-      gap: 28px;
-      padding: 40px 48px 48px;
-      align-items: start;
-    }}
-
     .content {{
-      min-width: 0;
+      padding: 40px 56px 48px;
       font-size: 17px;
     }}
 
@@ -185,7 +184,8 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       padding: 20px 22px;
       border: 1px solid rgba(21, 35, 56, 0.08);
       border-radius: 18px;
-      background: rgba(15, 108, 189, 0.04);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
     }}
 
     .toc-title {{
@@ -321,15 +321,15 @@ ARTICLE_STYLE = """<!DOCTYPE html>
         padding-top: 20px;
       }}
 
-      .hero,
-      .article-body {{
-        padding-left: 20px;
-        padding-right: 20px;
-      }}
-
-      .article-body {{
+      .article-layout {{
         grid-template-columns: 1fr;
         gap: 20px;
+      }}
+
+      .hero,
+      .content {{
+        padding-left: 20px;
+        padding-right: 20px;
       }}
 
       .toc {{
@@ -360,19 +360,18 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       </nav>
     </div>
 
-    <article class="article">
-      <header class="hero">
-        <div class="eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
-        <p class="summary">{summary}</p>
-        <div class="meta">
-          <span>{date_label}</span>
-          {tag_badges}
-        </div>
-      </header>
+    <div class="article-layout">
+      <article class="article">
+        <header class="hero">
+          <div class="eyebrow">{eyebrow}</div>
+          <h1>{title}</h1>
+          <p class="summary">{summary}</p>
+          <div class="meta">
+            <span>{date_label}</span>
+            {tag_badges}
+          </div>
+        </header>
 
-      <div class="article-body">
-        {toc}
         <div class="content">
           {content}
           <div class="footer-nav">
@@ -380,8 +379,9 @@ ARTICLE_STYLE = """<!DOCTYPE html>
             <div class="footer-note">Generated from markdown source.</div>
           </div>
         </div>
-      </div>
-    </article>
+      </article>
+      {toc}
+    </div>
   </div>
 </body>
 </html>

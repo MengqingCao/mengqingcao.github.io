@@ -34,9 +34,16 @@
     }
 
     .shell {
-      width: min(980px, calc(100% - 32px));
+      width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 64px;
+    }
+
+    .article-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 28px;
+      align-items: start;
     }
 
     .topbar {
@@ -143,16 +150,8 @@
       font-size: 14px;
     }
 
-    .article-body {
-      display: grid;
-      grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
-      gap: 28px;
-      padding: 40px 48px 48px;
-      align-items: start;
-    }
-
     .content {
-      min-width: 0;
+      padding: 40px 56px 48px;
       font-size: 17px;
     }
 
@@ -162,7 +161,8 @@
       padding: 20px 22px;
       border: 1px solid rgba(21, 35, 56, 0.08);
       border-radius: 18px;
-      background: rgba(15, 108, 189, 0.04);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
     }
 
     .toc-title {
@@ -298,15 +298,15 @@
         padding-top: 20px;
       }
 
-      .hero,
-      .article-body {
-        padding-left: 20px;
-        padding-right: 20px;
-      }
-
-      .article-body {
+      .article-layout {
         grid-template-columns: 1fr;
         gap: 20px;
+      }
+
+      .hero,
+      .content {
+        padding-left: 20px;
+        padding-right: 20px;
       }
 
       .toc {
@@ -337,32 +337,20 @@
       </nav>
     </div>
 
-    <article class="article">
-      <header class="hero">
-        <div class="eyebrow">vLLM / Inference</div>
-        <h1>DeepSeek V4 KVCache 管理</h1>
-        <p class="summary">重点分析了 DeepSeek V4 模型在 kvcache 方面的创新点和 vLLM 及 vLLM Ascend 中是如何实现相应的 KVCache 管理的。</p>
-        <div class="meta">
-          <span>2026-06-09</span>
-          <span>vLLM</span>
+    <div class="article-layout">
+      <article class="article">
+        <header class="hero">
+          <div class="eyebrow">vLLM / Inference</div>
+          <h1>DeepSeek V4 KVCache 管理</h1>
+          <p class="summary">重点分析了 DeepSeek V4 模型在 kvcache 方面的创新点和 vLLM 及 vLLM Ascend 中是如何实现相应的 KVCache 管理的。</p>
+          <div class="meta">
+            <span>2026-06-09</span>
+            <span>vLLM</span>
           <span>Inference</span>
           <span>KVCache</span>
-        </div>
-      </header>
+          </div>
+        </header>
 
-      <div class="article-body">
-        <section class="toc" aria-labelledby="toc-title">
-          <div class="toc-title" id="toc-title">On This Page</div>
-          <nav class="toc-links" aria-label="Table of contents">
-          <a class="toc-item" href="#deepseek-v4-中的-kvcache-创新">DeepSeek V4 中的 kvcache 创新</a>
-          <a class="toc-subitem" href="#整体架构">整体架构</a>
-          <a class="toc-subitem" href="#attention">Attention</a>
-          <a class="toc-item" href="#kvcache-planning">KVCache planning</a>
-          <a class="toc-subitem" href="#in-vllm">in vLLM</a>
-          <a class="toc-subitem" href="#in-vllm-ascend">in vLLM Ascend</a>
-          <a class="toc-item" href="#references">references</a>
-          </nav>
-        </section>
         <div class="content">
           <h2 id="deepseek-v4-中的-kvcache-创新">DeepSeek V4 中的 kvcache 创新</h2>
         <p>首先，让我们从 DeepSeek V4 官方的技术博客中了解这个模型在 kvcache 这里做了哪些创新。</p>
@@ -421,8 +409,20 @@ group 5:   cdiv(258, 4) = 65</code></pre>
             <div class="footer-note">Generated from markdown source.</div>
           </div>
         </div>
-      </div>
-    </article>
+      </article>
+      <section class="toc" aria-labelledby="toc-title">
+          <div class="toc-title" id="toc-title">On This Page</div>
+          <nav class="toc-links" aria-label="Table of contents">
+          <a class="toc-item" href="#deepseek-v4-中的-kvcache-创新">DeepSeek V4 中的 kvcache 创新</a>
+          <a class="toc-subitem" href="#整体架构">整体架构</a>
+          <a class="toc-subitem" href="#attention">Attention</a>
+          <a class="toc-item" href="#kvcache-planning">KVCache planning</a>
+          <a class="toc-subitem" href="#in-vllm">in vLLM</a>
+          <a class="toc-subitem" href="#in-vllm-ascend">in vLLM Ascend</a>
+          <a class="toc-item" href="#references">references</a>
+          </nav>
+        </section>
+    </div>
   </div>
 </body>
 </html>
