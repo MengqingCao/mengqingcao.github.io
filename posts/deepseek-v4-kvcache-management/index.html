@@ -317,6 +317,7 @@ c128: swa cache、compressed kv cache、c128a kv state，c128a score state</code
         <h3>in vLLM</h3>
         <p>首先了解 vLLM 在 GPU 上 kv cache planning 的设计： 总体可以概括为，使用 <code>UniformTypeKVCacheSpecs</code> 对 page_size 差异大的 specs 进行一层 warp，然后再多个 <code>UniformTypeKVCacheSpecs</code> 组之间做 hybrid kv 的共享。 而 <code>UniformTypeKVCacheSpecs</code> 组内部，则划分为 3 个大小不一的 tensor，这既能实现组之间 对于同一 buffer 的 block pool 共享，又能防止 HMA 本身需要的 <code>page_size</code> 对齐操作引入了过多的 wasted pad。</p>
         <img src="/img/deepseek_v4/gpu_kv_planning.png" alt="image">
+        <p>_此图来源于<a href="https://github.com/ivanium">@ivanium</a>_</p>
         <blockquote><p>需要注意的一点是，我们可以看到 group 1 的 <code>block_size</code> 是 256，但实际在每个 spec 上的 <code>block_size</code> 都不相等。这是由于压缩比的存在，我们实际存储 kvcache 的时候不会把所有 token 的 kv cache 存下来，vLLM 把压缩发生在了 <code>block_size</code> 这个维度。这也就是说，虽然对于管理面的 <code>KVCacheManager</code> 来说看到的 <code>block_size</code> 是 256，但实际送到 kernel 侧的 block 已经被压缩为 <code>block_size // compress_ratio</code> 个 slots 了。</p></blockquote>
         <p>从运行时的视角分析上图，假设当前为 DeepSeek V4 Flash 模型，如下所示为其每层的结构：</p>
         <blockquote><p>43 层：<br>0/1: swa<br>2～42 的偶数层：c4<br>2～42 的奇数层：c128</p></blockquote>
@@ -338,8 +339,7 @@ group 5:   cdiv(258, 4) = 65</code></pre>
         <p>运行时的逻辑实际上和 vLLM GPU 上的逻辑基本一致，这里不做赘述。</p>
         <p>到这里，DeepSeek V4 的基础 KVCache 适配就讲完了，至于 prefix cache 的优化、KVCache Planning 优化等，vLLM 和 vLLM Ascend 都持续在做更多的工作，未完待续...</p>
         <h2>references</h2>
-        <ul><li>https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf</li></ul>
-        <p>-</p>
+        <ul><li>https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf</li><li>https://vllm.ai/blog/2026-04-24-deepseek-v4</li></ul>
         <div class="footer-nav">
           <a class="back-link" href="/">Back Home</a>
           <div class="footer-note">Generated from markdown source.</div>

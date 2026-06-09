@@ -69,6 +69,7 @@ c128: swa cache、compressed kv cache、c128a kv state，c128a score state
 而 `UniformTypeKVCacheSpecs` 组内部，则划分为 3 个大小不一的 tensor，这既能实现组之间 对于同一 buffer 的 block pool 共享，又能防止 HMA 本身需要的 `page_size` 对齐操作引入了过多的 wasted pad。
 
 ![image](/img/deepseek_v4/gpu_kv_planning.png)
+_此图来源于[@ivanium](https://github.com/ivanium)_
 
 > 需要注意的一点是，我们可以看到 group 1 的 `block_size` 是 256，但实际在每个 spec 上的 `block_size` 都不相等。这是由于压缩比的存在，我们实际存储 kvcache 的时候不会把所有 token 的 kv cache 存下来，vLLM 把压缩发生在了 `block_size` 这个维度。这也就是说，虽然对于管理面的 `KVCacheManager` 来说看到的 `block_size` 是 256，但实际送到 kernel 侧的 block 已经被压缩为 `block_size // compress_ratio` 个 slots 了。
 >
