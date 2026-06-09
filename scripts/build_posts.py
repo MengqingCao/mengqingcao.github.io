@@ -166,13 +166,22 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       font-size: 14px;
     }}
 
-    .content {{
+    .article-body {{
+      display: grid;
+      grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+      gap: 28px;
       padding: 40px 48px 48px;
+      align-items: start;
+    }}
+
+    .content {{
+      min-width: 0;
       font-size: 17px;
     }}
 
     .toc {{
-      margin: 0 0 30px;
+      position: sticky;
+      top: 24px;
       padding: 20px 22px;
       border: 1px solid rgba(21, 35, 56, 0.08);
       border-radius: 18px;
@@ -313,9 +322,19 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       }}
 
       .hero,
-      .content {{
+      .article-body {{
         padding-left: 20px;
         padding-right: 20px;
+      }}
+
+      .article-body {{
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }}
+
+      .toc {{
+        position: static;
+        order: -1;
       }}
 
       .topbar,
@@ -352,12 +371,14 @@ ARTICLE_STYLE = """<!DOCTYPE html>
         </div>
       </header>
 
-      <div class="content">
+      <div class="article-body">
         {toc}
-        {content}
-        <div class="footer-nav">
-          <a class="back-link" href="/">Back Home</a>
-          <div class="footer-note">Generated from markdown source.</div>
+        <div class="content">
+          {content}
+          <div class="footer-nav">
+            <a class="back-link" href="/">Back Home</a>
+            <div class="footer-note">Generated from markdown source.</div>
+          </div>
         </div>
       </div>
     </article>

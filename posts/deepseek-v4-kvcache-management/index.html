@@ -143,13 +143,22 @@
       font-size: 14px;
     }
 
-    .content {
+    .article-body {
+      display: grid;
+      grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+      gap: 28px;
       padding: 40px 48px 48px;
+      align-items: start;
+    }
+
+    .content {
+      min-width: 0;
       font-size: 17px;
     }
 
     .toc {
-      margin: 0 0 30px;
+      position: sticky;
+      top: 24px;
       padding: 20px 22px;
       border: 1px solid rgba(21, 35, 56, 0.08);
       border-radius: 18px;
@@ -290,9 +299,19 @@
       }
 
       .hero,
-      .content {
+      .article-body {
         padding-left: 20px;
         padding-right: 20px;
+      }
+
+      .article-body {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .toc {
+        position: static;
+        order: -1;
       }
 
       .topbar,
@@ -331,7 +350,7 @@
         </div>
       </header>
 
-      <div class="content">
+      <div class="article-body">
         <section class="toc" aria-labelledby="toc-title">
           <div class="toc-title" id="toc-title">On This Page</div>
           <nav class="toc-links" aria-label="Table of contents">
@@ -344,7 +363,8 @@
           <a class="toc-item" href="#references">references</a>
           </nav>
         </section>
-        <h2 id="deepseek-v4-中的-kvcache-创新">DeepSeek V4 中的 kvcache 创新</h2>
+        <div class="content">
+          <h2 id="deepseek-v4-中的-kvcache-创新">DeepSeek V4 中的 kvcache 创新</h2>
         <p>首先，让我们从 DeepSeek V4 官方的技术博客中了解这个模型在 kvcache 这里做了哪些创新。</p>
         <h3 id="整体架构">整体架构</h3>
         <p>从模型整体结构上看，DeepSeek V4 在之前的 attention + moe 的架构中，对残差连接做了一处创新，即引入了mHC。通俗地理解，即在 attention 和 moe 计算之前 先通过 hc_pre 将 hidden states 降维，降维之后的 hidden states 参与 attention 或 moe 计算之后，会通过 hc_post 进行升维，与残差线上的 hidden states concat 到一起作为下一层的 hidden states 输入。这种 mHC 连接使得在尽可能保留更多之前层的信息的同时，对主体 attention 和 moe 的计算量并没有增加。</p>
@@ -396,9 +416,10 @@ group 5:   cdiv(258, 4) = 65</code></pre>
         <p>到这里，DeepSeek V4 的基础 KVCache 适配就讲完了，至于 prefix cache 的优化、KVCache Planning 优化等，vLLM 和 vLLM Ascend 都持续在做更多的工作，未完待续...</p>
         <h2 id="references">references</h2>
         <ul><li>https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf</li><li>https://vllm.ai/blog/2026-04-24-deepseek-v4</li></ul>
-        <div class="footer-nav">
-          <a class="back-link" href="/">Back Home</a>
-          <div class="footer-note">Generated from markdown source.</div>
+          <div class="footer-nav">
+            <a class="back-link" href="/">Back Home</a>
+            <div class="footer-note">Generated from markdown source.</div>
+          </div>
         </div>
       </div>
     </article>
