@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepSeek V4 KVCache 管理 | Mengqing Cao</title>
+  <meta name="description" content="重点分析了 DeepSeek V4 模型在 kvcache 方面的创新点和 vLLM 及 vLLM Ascend 中是如何实现相应的 KVCache 管理的。">
+  <link rel="shortcut icon" href="/img/favicon.ico">
+  <link rel="stylesheet" href="/css/index.css">
+  <style>
+    :root {
+      --page-bg: #f7f8fb;
+      --panel-bg: rgba(255, 255, 255, 0.92);
+      --panel-border: rgba(21, 35, 56, 0.08);
+      --text-main: #1f2933;
+      --text-muted: #5b6472;
+      --accent: #0f6cbd;
+      --accent-soft: #e8f1fb;
+      --shadow: 0 18px 48px rgba(16, 34, 56, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(15, 108, 189, 0.1), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, var(--page-bg) 55%, #f3f4f7 100%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.75;
+    }
+
+    .shell {
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .topnav {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .topnav a,
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 16px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--text-main);
+      text-decoration: none;
+    }
+
+    .topnav a:hover,
+    .back-link:hover {
+      border-color: rgba(15, 108, 189, 0.3);
+      color: var(--accent);
+    }
+
+    .article {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero {
+      padding: 48px 48px 28px;
+      background:
+        linear-gradient(135deg, rgba(15, 108, 189, 0.12), rgba(255, 255, 255, 0.35)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88));
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 12px;
+      margin-bottom: 18px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1.08;
+    }
+
+    .summary {
+      max-width: 760px;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .meta span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(21, 35, 56, 0.08);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 40px 48px 48px;
+      font-size: 17px;
+    }
+
+    .content h2,
+    .content h3 {
+      margin: 40px 0 14px;
+      line-height: 1.25;
+    }
+
+    .content h2 {
+      font-size: 28px;
+    }
+
+    .content h3 {
+      font-size: 22px;
+    }
+
+    .content p,
+    .content ul,
+    .content ol,
+    .content blockquote,
+    .content pre {
+      margin: 0 0 18px;
+    }
+
+    .content ul,
+    .content ol {
+      padding-left: 22px;
+    }
+
+    .content li {
+      margin-bottom: 8px;
+    }
+
+    .content code {
+      padding: 0.12em 0.4em;
+      border-radius: 6px;
+      background: rgba(15, 108, 189, 0.08);
+      color: #0a4e88;
+      font-size: 0.95em;
+    }
+
+    .content pre {
+      overflow-x: auto;
+      padding: 18px 20px;
+      border-radius: 16px;
+      background: #152238;
+      color: #f3f7fb;
+    }
+
+    .content pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .content blockquote {
+      padding: 12px 18px;
+      border-left: 4px solid var(--accent);
+      background: rgba(15, 108, 189, 0.06);
+      color: var(--text-muted);
+      border-radius: 0 12px 12px 0;
+    }
+
+    .content img {
+      display: block;
+      width: 100%;
+      max-width: 860px;
+      margin: 22px auto;
+      border-radius: 18px;
+      border: 1px solid rgba(21, 35, 56, 0.08);
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(18, 38, 63, 0.08);
+    }
+
+    .footer-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid rgba(21, 35, 56, 0.08);
+    }
+
+    .footer-note {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100%, calc(100% - 20px));
+        padding-top: 20px;
+      }
+
+      .hero,
+      .content {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .topbar,
+      .footer-nav {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .summary {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <a class="brand" href="/">Mengqing Cao</a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="/">Home</a>
+        <a href="/tags/">Tags</a>
+        <a href="/categories/">Categories</a>
+      </nav>
+    </div>
+
+    <article class="article">
+      <header class="hero">
+        <div class="eyebrow">vLLM / Inference</div>
+        <h1>DeepSeek V4 KVCache 管理</h1>
+        <p class="summary">重点分析了 DeepSeek V4 模型在 kvcache 方面的创新点和 vLLM 及 vLLM Ascend 中是如何实现相应的 KVCache 管理的。</p>
+        <div class="meta">
+          <span>2026-06-09</span>
+          <span>vLLM</span>
+          <span>Inference</span>
+          <span>KVCache</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <h2>DeepSeek V4 中的 kvcache 创新</h2>
+        <p>首先，让我们从 DeepSeek V4 官方的技术博客中了解这个模型在 kvcache 这里做了哪些创新。</p>
+        <h3>整体架构</h3>
+        <p>从模型整体结构上看，DeepSeek V4 在之前的 attention + moe 的架构中，对残差连接做了一处创新，即引入了mHC。通俗地理解，即在 attention 和 moe 计算之前 先通过 hc_pre 将 hidden states 降维，降维之后的 hidden states 参与 attention 或 moe 计算之后，会通过 hc_post 进行升维，与残差线上的 hidden states concat 到一起作为下一层的 hidden states 输入。这种 mHC 连接使得在尽可能保留更多之前层的信息的同时，对主体 attention 和 moe 的计算量并没有增加。</p>
+        <img src="/img/deepseek_v4/dsv4_arch.png" alt="image">
+        <h3>Attention</h3>
+        <p>DeepSeek V4 在 Attention 模块这里引入了较为大刀阔斧的改革，传统的 MLA 对所有 token 的 kv 都进行运算，而 DeepSeek V4 中引入了 kv 压缩的概念，通过一个 compressor 模块对 kvcache 进行压缩，并且设计了两种压缩比：4 和 128，这两种压缩比的 attention 层交替出现；另外 DeepSeek V4 的 mtp 层没有进行压缩，且 Flash 中的第0和1层没有进行压缩。这仅仅是整体上 DeepSeek V4 attention 层的变化，下面让我们进入 c4 和 c128 的 attention 内部探究 kvcache 的更多创新。</p>
+        <h4>CSA</h4>
+        <p>首先从最复杂的 c4 层看起，c128的算法设计，除了压缩比的变化，可以认为是 c4 减去 稀疏化的 kv topk select。因此，看懂 c4 之后，c128 自然也就融会贯通了。</p>
+        <p>c4 这层的 attention 被 DeepSeek V4 命名为 CSA （ Compressed Sparse Attention），其中，所有 kv tokens 的 hidden states 被分为三股：</p>
+        <ol><li><strong>sliding window kv entries</strong>：固定窗口范围内的 kv entries</li><li><strong>compressed kv entries</strong>：经过一个 token 层级的 compressor，将原始的所有 kv 按照指定的压缩比进行压缩。compressor 是一个包含可训练参数的模块，通过对 kv entries 进行 compressor 前向计算后得到 压缩后的 kv entries。但是请注意，这里得到压缩后的 kv entries 并不是直接参与 attention 计算的 kv。</li><li><strong>indexer 模块的 kv entries</strong>：与 2 相似地，indexer 模块中，使用 compressor 对输入的 kv 进行压缩，得到压缩后的 indexer keys 与低秩 queries 通过 MQA 计算得到 indexer scores。这与 DeepSeek V3.2 的 DSA 操作是相同的，只是此时选出的 indices 是针对压缩后的 kv entries 的。</li></ol>
+        <p>这时，我们再回到2，在 2 中得到的压缩后的 kv entries 中根据 indexer 输出的 indices 选择出 selected compressed kv entries 。selected compressed kv entries 与 sliding window 的 kv entries concat 到一起，即为最终 MQA 计算需要的 kv。</p>
+        <img src="/img/deepseek_v4/csa.png" alt="image">
+        <p>至此，我们可以发现，需要框架侧去管理的 kvcache 已经有 swa cache、compressed kv cache、compressed indexer kv cache 三种。但 compressor 为了持续实现 kv 的压缩，在不满压缩比的时候，需要把当前的 kv entries 及 kv 压缩过程中的加权和计算时的 softmax 结果，即 score 暂存起来，待 满压缩比 之后进行压缩，才会存入 compressed kv cache 内。因此，每个 compressor 也意味着需要两个 中间暂存的 kv state 和 score state 的 cache。</p>
+        <h4>HCA</h4>
+        <p>c128 这层的 attention 被 DeepSeek V4 命名为 HCA （  Heavily Compressed Attentio），他仅仅保留了 sliding window 和 主 compressor 的设计，没有进行 lightning indexer 的稀疏化选择。</p>
+        <img src="/img/deepseek_v4/hca.png" alt="image">
+        <h4>sliding window mla</h4>
+        <p>而对于不进行压缩的层，就只剩下了 sliding window kv 这一种。</p>
+        <p>总结一下所有层出现的 kv cache：</p>
+        <pre><code>c1: swa cache
+c4: swa cache、compressed kv cache、compressed indexer kv cache、c4a kv state，c4a score state、c4i kv state、c4i score state   
+c128: swa cache、compressed kv cache、c128a kv state，c128a score state</code></pre>
+        <blockquote><p>c4a 指 c4 这一层的 attention，c4i 指 c4 这一层的 indexer；c128 同理</p></blockquote>
+        <h2>KVCache planning</h2>
+        <p>如果你对 vLLM 中 kvcache 的分组管理不太了解，这里可以先移步 <a href="/posts/vllm-kvcache-grouping/">vLLM 中的几种 KVCache 分组机制</a> 了解什么是 <code>UniformTypeKVCacheSpecs</code> 和 Hybrid Memory Allocator，DeepSeek V4 就是基于这两种机制进行 kvcache 规划的。</p>
+        <h3>in vLLM</h3>
+        <p>首先了解 vLLM 在 GPU 上 kv cache planning 的设计： 总体可以概括为，使用 <code>UniformTypeKVCacheSpecs</code> 对 page_size 差异大的 specs 进行一层 warp，然后再多个 <code>UniformTypeKVCacheSpecs</code> 组之间做 hybrid kv 的共享。 而 <code>UniformTypeKVCacheSpecs</code> 组内部，则划分为 3 个大小不一的 tensor，这既能实现组之间 对于同一 buffer 的 block pool 共享，又能防止 HMA 本身需要的 <code>page_size</code> 对齐操作引入了过多的 wasted pad。</p>
+        <img src="/img/deepseek_v4/gpu_kv_planning.png" alt="image">
+        <blockquote><p>需要注意的一点是，我们可以看到 group 1 的 <code>block_size</code> 是 256，但实际在每个 spec 上的 <code>block_size</code> 都不相等。这是由于压缩比的存在，我们实际存储 kvcache 的时候不会把所有 token 的 kv cache 存下来，vLLM 把压缩发生在了 <code>block_size</code> 这个维度。这也就是说，虽然对于管理面的 <code>KVCacheManager</code> 来说看到的 <code>block_size</code> 是 256，但实际送到 kernel 侧的 block 已经被压缩为 <code>block_size // compress_ratio</code> 个 slots 了。</p></blockquote>
+        <p>从运行时的视角分析上图，假设当前为 DeepSeek V4 Flash 模型，如下所示为其每层的结构：</p>
+        <blockquote><p>43 层：<br>0/1: swa<br>2～42 的偶数层：c4<br>2～42 的奇数层：c128</p></blockquote>
+        <p>此时 kvcache 分组的组大小为 22，即有 22 * 3 个 <code>KVCacheTensor</code>，每个 tensor 被所有 5 个组共享。 对于一个长度为 258 的 <code>请求，KVCacheManager</code> 和 <code>KVCacheCoordinator</code> 按照不同组的 <code>SingleTypeKVCacheManager</code> 的规则给不同的组分配 block 的结果如下：</p>
+        <pre><code>group 1:   cdiv(258, 256) = 2
+group 2/3: cdiv(258, 256) = 2
+group 4:   cdiv(258, 8) = 33
+group 5:   cdiv(258, 4) = 65</code></pre>
+        <p>虽然看起来给 group 4 和 5 分配了非常多的 block，但实际上由于他们用的是 <code>SlidingWindowManager</code>，前面的 32 个（group5是64个）blocks 会立即调用 <code>blockpool.free_blocks</code> 释放掉，因此这里实际占用的 block 数量只有 1 个。</p>
+        <p>管理面完成了 block 分配后，经由 ModelRunner 计算 <code>block_table</code>、<code>slot_mapping</code> 等，就进入 attention 后端执行计算了。我们前面提到，对 <code>block_size</code> 进行了压缩，因此 <code>slot_mapping</code> 这里实际上也要计算压缩后的 <code>slot_mapping</code>。具体的计算逻辑在 <code>vllm/v1/attention/backends/mla/compressor_utils.py</code> 中的 <code>get_compressed_slot_mapping</code> 方法中，简要概括他主要的行为是，根据实际存储的 <code>block_size</code>（即压缩后的）去计算 <code>slot_mapping</code>，然后把不满压缩比位置的 <code>slot_mapping</code> 值置为 -<code>1，reshape_and_cache</code> 算子对 <code>slot_id</code> 为 -1 的位置不会做任何操作，这样就实现了实际在 attention 后端的压缩的 kvcache 的存储。</p>
+        <h3>in vLLM Ascend</h3>
+        <p>在了解 vLLM Ascend 的实现之前，我们首先需要了解 ascend 侧算子的一个限制，这也是我们和 vLLM GPU 方案有区别的原因：attention 算子支持的最小 <code>block_size</code> 为 16，性能原因推荐 <code>block_size</code> 为 128。</p>
+        <blockquote><p>需要补充一点：当前正在做 不同 <code>block_size</code> 的实验，用来 trade off 不同 <code>block_size</code> 对 kvcache 管理造成的 prefix cache hit rate 降低 和 算子性能劣化 带来的性能影响，未来这个方案图也许会发生变化。</p></blockquote>
+        <img src="/img/deepseek_v4/npu_kv_planning.png" alt="image">
+        <p>okay，了解完这个限制之后，比较显然的就是，c128a 的大小比 GPU 的大了很多倍，已经不适合再单独一个 <code>KVCacheTensor</code> 去存了，否则将会引入巨大的 patch。即便 <code>SlidingWindowManager</code> 会很快释放掉这些 pad blocks，这依然很大提高了临时的 blocks 占用。 解决这个问题一个很直觉的做法是，直接让 c128a 也成为和 其他组去共享 tensor 的一个组，也就是上图所示。这样，在仅仅引入一个组的情况下，即可消除每个组去申请很多的 pad blocks。缺点也很显然，我们要为此实现和 vLLM 略有不同的 KVCache Planning。</p>
+        <p>看到这里也许你会有一个疑问：vLLM Ascend 的 kvcache 没有压缩吗？为什么图中标的具体 spec 的 <code>block_size</code> 都是和管理面一样的？</p>
+        <p>这就是我们的第二个定制化修改：<strong>压缩 <code>num_blocks</code> 这一维，而不是 <code>block_size</code> 这一维</strong>。</p>
+        <p>具体的实现方法是，当 scheduler 为 <code>num_tokens</code> 个 tokens 去申请 blocks 时，我们会提前将 num_tokens 压缩为 <code>num_tokens // compress_ratio</code> ，这样我们即可在分配 block 的时候，为 compressed kvcache 只分配 1/<code>compress_ratio</code> 倍的 blocks，这样 kvcache 的实际压缩就完成了。 不过，虽然成功在 <code>num_blocks</code> 这一维完成了压缩，但这个带来的影响是 <code>block_id</code> 已经被压缩，因此我们需要在 <code>ModelRunner</code> 侧适配 压缩 position id 以及根据压缩后的 position id 去计算 压缩后的 slot_mapping 的逻辑，具体代码可以参考：<code>vllm_ascend.utils.get_compressed_pos_and_indices</code> 和 <code>vllm_ascend.worker.block_table.MultiGroupBlockTable.compute_slot_mapping</code> 。</p>
+        <p>运行时的逻辑实际上和 vLLM GPU 上的逻辑基本一致，这里不做赘述。</p>
+        <p>到这里，DeepSeek V4 的基础 KVCache 适配就讲完了，至于 prefix cache 的优化、KVCache Planning 优化等，vLLM 和 vLLM Ascend 都持续在做更多的工作，未完待续...</p>
+        <div class="footer-nav">
+          <a class="back-link" href="/">Back Home</a>
+          <div class="footer-note">Generated from markdown source.</div>
+        </div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
