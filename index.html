@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mengqing Cao</title>
-  <meta name="description" content="Mengqing Cao personal site">
+  <meta name="description" content="Mengqing Cao's blog on systems, inference, and large model serving.">
   <link rel="shortcut icon" href="/img/favicon.ico">
   <link rel="stylesheet" href="/css/index.css">
   <style>
@@ -24,7 +24,7 @@
     }
 
     .hero {
-      padding: 28px 0 36px;
+      padding: 28px 0 24px;
     }
 
     h1 {
@@ -68,6 +68,22 @@
       border-color: #8ea0b8;
     }
 
+    .posts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .posts-header p {
+      margin: 0;
+      max-width: 560px;
+      color: #5b6472;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
     .posts {
       display: grid;
       gap: 18px;
@@ -84,7 +100,7 @@
     .post-card {
       padding: 24px;
       border: 1px solid #d6dbe3;
-      border-radius: 20px;
+      border-radius: 16px;
       background: rgba(255, 255, 255, 0.9);
       box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
     }
@@ -132,6 +148,20 @@
       font-weight: 600;
     }
 
+    .post-card .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .archive-note {
+      margin-top: 22px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
     @media (max-width: 720px) {
       main {
         width: min(100%, calc(100% - 20px));
@@ -148,6 +178,11 @@
       h1 {
         font-size: 40px;
       }
+
+      .posts-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -162,8 +197,15 @@
       </nav>
     </section>
 
-    <section class="posts" aria-labelledby="latest-posts">
-      <h2 class="section-title" id="latest-posts">Latest Post</h2>
+    <section aria-labelledby="all-posts">
+      <div class="posts-header">
+        <div>
+          <h2 class="section-title" id="all-posts">All Posts</h2>
+          <p>A running list of essays and technical notes. New writing will land here first.</p>
+        </div>
+      </div>
+
+      <div class="posts">
       <article class="post-card">
         <div class="meta">2026-06-09</div>
         <h2><a href="/posts/vllm-kvcache-grouping/">vLLM 中的几种 KVCache 分组机制</a></h2>
@@ -172,8 +214,13 @@
           <span>vLLM</span>
           <span>Inference</span>
         </div>
-        <a class="read-more" href="/posts/vllm-kvcache-grouping/">Read Article</a>
+        <div class="row">
+          <a class="read-more" href="/posts/vllm-kvcache-grouping/">Read Article</a>
+        </div>
       </article>
+      </div>
+
+      <p class="archive-note">Archive building in public.</p>
     </section>
   </main>
 </body>
