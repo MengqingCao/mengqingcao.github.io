@@ -1,6 +1,8 @@
 ---
 title: vLLM 中的几种 KVCache 分组机制
 date: 2026-06-09 14:34:51
+slug: vllm-kvcache-grouping
+summary: 整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。
 tags: vLLM; Inference
 ---
 

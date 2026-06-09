@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>vLLM 中的几种 KVCache 分组机制 | Mengqing Cao</title>
-  <meta name="description" content="vLLM 中几种 KVCache 分组机制的整理，包括 Uniform KVCacheSpec、UniformTypeSpecs 和 HMA。">
+  <meta name="description" content="整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。">
   <link rel="shortcut icon" href="/img/favicon.ico">
   <link rel="stylesheet" href="/css/index.css">
   <style>
@@ -170,6 +170,15 @@
       margin: 0 0 18px;
     }
 
+    .content ul,
+    .content ol {
+      padding-left: 22px;
+    }
+
+    .content li {
+      margin-bottom: 8px;
+    }
+
     .content code {
       padding: 0.12em 0.4em;
       border-radius: 6px;
@@ -226,6 +235,10 @@
       font-size: 14px;
     }
 
+    a {
+      color: var(--accent);
+    }
+
     @media (max-width: 720px) {
       .shell {
         width: min(100%, calc(100% - 20px));
@@ -275,55 +288,40 @@
 
       <div class="content">
         <p>KVCache 的分组是 HMA 中非常重要的部分，HMA 是为了解决在混合 Attention 模型下的 KVCache 高效管理诞生的技术。其核心在于，通过分组实现两种 Attention 类型对应的 KVCache 共享同一块 Buffer。</p>
-        <p>首先统一语言，这一节中，KVCache 类型指不同的 <code>KVCacheSpec</code>，大小指一个 block 占的物理内存字节数，通常为：</p>
+        <p>首先统一语言，这一节中，KVCache 类型指不同的 <code>KVCacheSpec</code>，大小指 一个 block 占的物理内存字节数，通常为</p>
         <pre><code>block_size * num_head * head_dim * sizeof(cache_dtype)</code></pre>
-
         <h2>统一的 KVCacheSpec 组</h2>
-        <p>每个 Attention 层的 KVCache 完全一致。这里的完全一致是指类型一致、大小一致。这是最广泛、最基础的 KVCache 组，几乎所有的非混合 Attention 模型都属于这一类，典型模型如 Qwen2.5、DeepSeek V3.1 等。</p>
+        <p>每个 Attention 层的 KVCache 完全一致，完全一致是指，类型一致，大小一致。这是最广泛最基础的 KVCache 组，几乎所有的非混合 Attention 模型均属于这一种组，典型的模型如 Qwen2.5，DeepSeek V3.1等。</p>
         <p>这种组中，每一个 attention 层都有一块 kvcache buffer，每个 buffer 上都有 <code>num_gpu_blocks</code> 个 blocks，由 <code>KVCacheManager</code> 统一从 <code>BlockPool</code> 调度即可。</p>
-        <img src="/img/kvcache_grouping/uniform_kvcache.png" alt="统一 KVCacheSpec 组">
-
+        <img src="/img/kvcache_grouping/uniform_kvcache.png" alt="image">
         <h2>类型统一的 KVCacheSpec 组</h2>
-        <p>不同 Attention 层，KVCache type 相同，但大小不一样。典型模型有 DeepSeek-V3.2、minicpm 4.1，以及 spec decode 或 MTP 层中的 kv head 数量和主模型不一致的场景。</p>
-        <blockquote>
-          <p>特性 PR：<a href="https://github.com/vllm-project/vllm/pull/25101">https://github.com/vllm-project/vllm/pull/25101</a></p>
-        </blockquote>
-        <p>这种组中，同样是每一个 attention 层都有一块 kvcache buffer，每个 buffer 上都有 <code>num_gpu_blocks</code> 个 blocks，只是每层的 buffer 大小不一致。因此在这种分组策略下，同一个 token 在不同层上分配的 block id 仍然是相同的。</p>
-        <img src="/img/kvcache_grouping/uniform_type_kvcache.png" alt="类型统一的 KVCacheSpec 组">
-
+        <p>不同 Attention 层，KVCache type 相同，但大小不一样，典型的模型有 DeepSeek-V3.2（indexer cache层和 MLA 层量化策略不一致）、minicpm 4.1、spec decode 或 MTP 层中的 kv head 数量 和 主模型 不一致的</p>
+        <blockquote><p>特性 pr：https://github.com/vllm-project/vllm/pull/25101</p></blockquote>
+        <p>这种组中，同样是 每一个 attention 层都有一块 kvcache buffer，每个 buffer 上都有 <code>num_gpu_blocks</code> 个 blocks，只是每层的 buffer 的大小不一致。因此在这种分组策略下，同样同一个 token 在不同层上 分配的 block id 是相同的。</p>
+        <img src="/img/kvcache_grouping/uniform_type_kvcache.png" alt="image">
         <h2>混合 KVCacheSpec 组</h2>
-        <p>不同 Attention 层，KVCache type 不同，大小也不一定一样。典型模型有 Gemma3、Qwen3-Next、Qwen3.5 等。</p>
+        <p>不同 Attention 层，KVCache type 不同，大小不一定一样。 典型模型有 Gemma3、Qwen3-Next、Qwen3.5等。</p>
         <p>这里就是 HMA 的核心内容了。</p>
-
-        <h3>首先理解为什么有这个问题</h3>
-        <p>让我们站在 Qwen3-Next 还没有 HMA 的时间点上，此时 vLLM 的行为是：给每层分配同样大小的一块 buffer。结合 linear attention 和 full attention 的 kvcache 差异，可以看到这里有明显浪费。对于 linear attention 层来说，每个请求需要的 kvcache 总大小是固定的，只需要固定 <code>N</code> 个 block（N = 1），但系统仍然强行给它分配 <code>NUM_BLOCKS</code> 个 block。</p>
-        <p>而在 Qwen3-Next 中，linear attention 层实际上比 full attention 层还要多两倍，这会进一步放大浪费。</p>
-
+        <h3>首先理解为什么有这个问题。</h3>
+        <p>让我们站在 Qwen3-Next 没有 HMA 的时间点上，此时 vLLM 的行为是，给每层分配同样大小的一块 buffer。（ps：可能有的同学会疑惑，这不是刚好可以用 <code>UniformTypeSpecs</code>？第一点是 vLLM 中 HMA 的出现早于 <code>UniformTypeSpecs</code>。另外还有更重要的一点，我们放在后面解释）</p>
+        <p>每层分配同样大小的 buffer，看到这里，结合 linear attention 和 full attention 的 kvcache 的区别，大家应该看到了问题，是的，对于 linear attention 层来说，这是极大的浪费。因为对于每个请求来说，linear attention 需要的 kvcache 的总大小是固定的，也就是说，只需要固定 <code>N</code> 个 block（N=1），但是还是强行给他分配了 <code>NUM_BLOCKS</code> 个 block，并且在  Qwen3-Next 中，linear attention 层实际上比 full attention 层还要多 2 倍，这无疑带来了更大的 kvcache 浪费。</p>
+        <p>那么，如何解决这个问题呢？让我们首先尝试用 <code>UniformKVCacheSpecs</code> 的思路解决问题，这里主要是解释，为什么 <code>UniformKVCacheSpecs</code> 并不是最佳方案，跳过也完全不影响对 vLLM 当前 KVCache 方案的理解。</p>
         <h3>UniformKVCacheSpecs 方案分析</h3>
-        <p><code>UniformKVCacheSpecs</code> 的思路乍看很自然：既然某些层需要的 kvcache 更小，那就按需给每层分配不同大小的 kvcache。</p>
-        <p>问题在于，这个机制实际上仍要求每一层的 block 数量相等。因为 vLLM 的 <code>KVCacheCoordinator</code> 中只有一个 block pool，而且当只有一组 kvcache 时，也只有一个 <code>SingleTypeKVCacheManager</code>。这意味着对于一个请求来说，在每一层分配的 block id 是相同的，因此我们想要的“只给 linear attention 层分配一个 block”并不能直接做到。</p>
-        <p>理论上可以通过多 block pool 解决，但这样不仅会带来架构改动，还会引入 prefix cache 场景下 block 预留数量不可预估的问题。保守预留的话，最后又会退化成每层 block 数相同的设计。所以 <code>UniformKVCacheSpecs</code> 并不能很好地解决 hybrid model 中 KVCache 浪费的问题。</p>
-
+        <p><code>UniformKVCacheSpecs</code> 的设计在一定程度上其实比较契合上述问题的背景，既然某些层需要的 kvcache 比较小，那我直接按照你的需求，给每一层分配不同大小的 kvcache 不就可以了？</p>
+        <p>一个问题，<code>UniformKVCacheSpecs</code> 机制实际上还是要求每一层的 block 数量相等，因为 vLLM 的 <code>KVCacheCoordinator</code> 中只有一个 block pool，而且当只有一组 kvcache 时，只有一个 <code>SingleTypeKVCacheManager</code>，这意味着对于一个请求来说，在每一层分配的 block id 是相同的，那么我们想要的，给 linear attention 层只分配一个block就无法做到。</p>
+        <p>其实也不是完全不可以做到，给 linear attention 层只分配一个 block，但是这需要上层的 <code>KVCacheCoordinator</code> 支持多 block pool，从两个 block pool 中分别给 linear attention 层和 full attention 层分配 block ，这带来的不仅仅是代码架构的更改，更重要的是我们要给 linear attention 层预留多少个 block 的问题。我们前面所说的只给 linear attention 层分配一个 block，是没有考虑 prefix cache 问题的，当考虑 prefix cache 时， 无法预知运行时会有多少个 block 被命中，即运行时 linear attention 对 kvcache 的 block 数量需求的峰值是无法预估的。而如果按照最保守的方式去为 linear attention 层预留 block，那么当前方案就会退化为每层的 block 数一样。因此，<code>UniformKVCacheSpecs</code> 并不能很好地解决 hybrid model 中 KVCache 浪费的问题。</p>
         <h3>HMA</h3>
-        <p>首先建立整体认知：HMA 的核心是不同层去共享同一块 buffer、一个 block pool 和一份 block table，从而减少 KVCache 的浪费与碎片化。</p>
-        <p>下图以 Qwen3-Next 为例，直观感受一下 HMA 的样子。普通 full attention 和 linear attention 的层数比例为 1:3，因此 <code>shared_by</code> 中，一层 full attention 层和三层 linear attention 层共享同一块 buffer。达成的效果是：对于一个 token，每个 KVCacheTensor 上会分配四个 block id，shared by 中的各层每层一个。</p>
-        <img src="/img/kvcache_grouping/hybrid_kvcache.png" alt="混合 KVCacheSpec 组">
-
-        <p>vLLM 在探索 HMA 中 kvcache 排布时也经历了几轮微调。本文只介绍当前最新代码。想了解更多背景，可以阅读 vLLM 团队的博客：</p>
-        <p><a href="https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/">Hybrid models as first class citizens in vLLM</a></p>
-
+        <p>首先建立整体认知，HMA 的核心是，不同层去共享同一块 buffer，一个 block pool，一份 blocktable，从而减少 KVCache 的浪费及碎片化 下图以 Qwen3-Next 为例，直观感受一下 HMA 的样子。普通 full attention 和 linear attention 的层数比例为 1:3，因此 shared_by 中，一层 full attention 层和 3 层 linear attention 层 共享同一块 buffer。达成的效果是，对于一个 token，每个 KVCacheTensor 上会分配 4 个 block id，shared by 中的各层每层一个。</p>
+        <img src="/img/kvcache_grouping/hybrid_kvcache.png" alt="image">
+        <p>vLLM 在探索 HMA 中 kvcache 排布也经历了几个微调，本文仅介绍当前的最新代码，想了解更多请阅读 vLLM 团队写的博客：</p>
+        <p><a href="https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/">hybrid models as first class citizens in vllm</a></p>
         <p>HMA 中最重要的两点：</p>
-        <ol>
-          <li>不同类型的 KVCacheSpec 的 page size，也就是一个 block 的物理内存大小，需要对齐。vLLM 当前主要有两种对齐方式：放大 block size 到原来的 <code>x</code> 倍，或者添加一个 pad。</li>
-          <li>不同类型的 kvcache 虽然共享同一个 buffer，但都拥有自己独立的一份内存视图。也就是说，物理内存是同一片，但对物理内存的解读方式不同。</li>
-        </ol>
-
-        <p>HMA 为了兼容更多 attention backend，还做了一个关键工作：将算子支持的 block size 与 KVCacheSpec 的 page size 解耦。具体来说，attention 算子接收到的 block size、block table、slot mapping 等，都是基于算子支持的 block size 计算的；而调度侧仍通过更大的 block size 完成 block 分配。可以把它理解为，调度侧一次性分配了 <code>x</code> 个 kernel 侧的 blocks。这使得更多 attention backend 可以使用 HMA。</p>
-        <p><a href="https://github.com/vllm-project/vllm/pull/24486">[Hybrid]: Decouple Kernel Block Size from KV Page Size</a></p>
-
+        <ol><li>不同类型的 KVCacheSpec 的 page size （一个 block 的物理内存大小）要对齐。vLLM 中当前有两种对齐的方法：<ol><li>放大 block size 为原来的 <code>x</code> 倍</li><li>添加一个 pad</li></ol></li><li>不同类型的 kvcache 虽然共享一个 buffer，但都有自己单独的一份内存视图，<strong>即物理内存是同一片，但对物理内存的解读不同</strong>。</li></ol>
+        <p>HMA 兼容更多 attention backend 的工作：将算子支持 block size 和 KVCacheSpec 的 page size 解耦，具体来讲，attention 算子接收到的 block size、block table、slot mapping等，都是基于算子支持的 block size 去计算的。 而调度侧还是通过大的 block size 去完成 block 的分配等工作，可以理解为，调度侧一下子分配了 x 个 kernel 侧的 blocks。这个特性使得 更多的 attention backend 可以使用 HMA。</p>
+        <p>[[Hybrid]: Decouple Kernel Block Size from KV Page Size](https://github.com/vllm-project/vllm/pull/24486)</p>
         <div class="footer-nav">
           <a class="back-link" href="/">Back Home</a>
-          <div class="footer-note">Source article integrated from local Hexo draft.</div>
+          <div class="footer-note">Generated from markdown source.</div>
         </div>
       </div>
     </article>
