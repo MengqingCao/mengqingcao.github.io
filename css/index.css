@@ -4534,10 +4534,6 @@ h1.page-title + .tag-cloud-list {
 .fb-comments iframe {
   width: 100% !important;
 }
-#gitalk-container .gt-meta {
-  margin: 0 0 0.8em;
-  padding: 6px 0 16px;
-}
 .katex-wrap {
   overflow: auto;
 }
@@ -5587,12 +5583,6 @@ blockquote.pullquote.right {
 }
 [data-theme='dark'] #aside-content .aside-list > .aside-list-item:not(:last-child) {
   border-bottom: 1px dashed rgba(255,255,255,0.1);
-}
-[data-theme='dark'] #gitalk-container {
-  filter: brightness(0.8);
-}
-[data-theme='dark'] #gitalk-container svg {
-  fill: rgba(255,255,255,0.9) !important;
 }
 [data-theme='dark'] #disqus_thread #dsqjs .dsqjs-tab-active,
 [data-theme='dark'] #disqus_thread #dsqjs .dsqjs-no-comment {
