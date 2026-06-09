@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 POSTS_SRC = ROOT / "blog" / "source" / "_posts"
 POSTS_OUT = ROOT / "posts"
 SITE_INDEX = ROOT / "index.html"
+TAGS_INDEX = ROOT / "tags" / "index.html"
+CATEGORIES_INDEX = ROOT / "categories" / "index.html"
 
 
 ARTICLE_STYLE = """<!DOCTYPE html>
@@ -539,6 +541,190 @@ INDEX_STYLE = """<!DOCTYPE html>
 """
 
 
+LIST_STYLE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title} | Mengqing Cao</title>
+  <meta name="description" content="{description}">
+  <link rel="shortcut icon" href="/img/favicon.ico">
+  <link rel="stylesheet" href="/css/index.css">
+  <style>
+    body {{
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(15, 108, 189, 0.1), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #f7f8fb 58%, #f2f4f7 100%);
+      color: #1f2933;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }}
+
+    main {{
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0 72px;
+    }}
+
+    .hero {{
+      padding: 28px 0 24px;
+    }}
+
+    h1 {{
+      margin: 0 0 12px;
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1.05;
+    }}
+
+    .hero p {{
+      margin: 0;
+      max-width: 720px;
+      color: #5b6472;
+      font-size: 17px;
+      line-height: 1.7;
+    }}
+
+    nav {{
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }}
+
+    nav a,
+    .post-link {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 16px;
+      border: 1px solid #d6dbe3;
+      border-radius: 8px;
+      color: #1f2933;
+      text-decoration: none;
+      background: #fff;
+    }}
+
+    nav a:hover,
+    .post-link:hover {{
+      border-color: #8ea0b8;
+    }}
+
+    .groups {{
+      display: grid;
+      gap: 18px;
+    }}
+
+    .group {{
+      padding: 22px 24px;
+      border: 1px solid #d6dbe3;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 12px 30px rgba(18, 38, 63, 0.06);
+    }}
+
+    .group-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }}
+
+    .group-head h2 {{
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }}
+
+    .group-count {{
+      color: #6b7280;
+      font-size: 14px;
+    }}
+
+    .post-list {{
+      display: grid;
+      gap: 12px;
+    }}
+
+    .post-item {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-top: 12px;
+      border-top: 1px solid #e8edf3;
+    }}
+
+    .post-item:first-child {{
+      padding-top: 0;
+      border-top: 0;
+    }}
+
+    .post-meta {{
+      flex: 1 1 360px;
+      min-width: 0;
+    }}
+
+    .post-meta a {{
+      color: #1f2933;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.4;
+    }}
+
+    .post-meta p {{
+      margin: 6px 0 0;
+      color: #5b6472;
+      font-size: 15px;
+      line-height: 1.7;
+    }}
+
+    .post-date {{
+      color: #6b7280;
+      font-size: 14px;
+      white-space: nowrap;
+    }}
+
+    @media (max-width: 720px) {{
+      main {{
+        width: min(100%, calc(100% - 20px));
+      }}
+
+      .group {{
+        padding: 18px;
+      }}
+
+      .post-item {{
+        align-items: flex-start;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>{title}</h1>
+      <p>{description}</p>
+      <nav aria-label="Site navigation">
+        <a href="/">Home</a>
+        <a href="/tags/">Tags</a>
+        <a href="/categories/">Categories</a>
+      </nav>
+    </section>
+
+    <section class="groups">
+      {groups}
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
 @dataclass
 class Post:
     source_path: Path
@@ -547,6 +733,7 @@ class Post:
     slug: str
     summary: str
     tags: List[str]
+    categories: List[str]
     body_markdown: str
     published: bool
 
@@ -597,6 +784,12 @@ def split_tags(value: str) -> List[str]:
         return []
     parts = re.split(r"[;,]", value)
     return [part.strip() for part in parts if part.strip()]
+
+
+def split_categories(meta: dict) -> List[str]:
+    value = meta.get("categories") or meta.get("category") or ""
+    categories = split_tags(value)
+    return categories or ["Notes"]
 
 
 def slugify(name: str) -> str:
@@ -785,6 +978,7 @@ def build_post(path: Path) -> Post:
         slug=slug,
         summary=summary,
         tags=tags,
+        categories=split_categories(meta),
         body_markdown=body.strip() + "\n",
         published=bool(meta.get("slug")),
     )
@@ -828,6 +1022,67 @@ def write_homepage(posts: List[Post]) -> None:
     SITE_INDEX.write_text(INDEX_STYLE.format(cards="\n        ".join(cards)), encoding="utf-8")
 
 
+def build_grouped_posts(posts: List[Post], attr: str) -> dict[str, List[Post]]:
+    grouped: dict[str, List[Post]] = {}
+    for post in posts:
+        for key in getattr(post, attr):
+            grouped.setdefault(key, []).append(post)
+    return dict(sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0].lower())))
+
+
+def render_group_section(name: str, posts: List[Post]) -> str:
+    items = []
+    for post in posts:
+        items.append(
+            f"""<div class="post-item">
+        <div class="post-meta">
+          <a href="{post.url}">{html.escape(post.title)}</a>
+          <p>{html.escape(post.summary)}</p>
+        </div>
+        <div class="post-date">{html.escape(post.date_label)}</div>
+      </div>"""
+        )
+    return f"""<article class="group">
+        <div class="group-head">
+          <h2>{html.escape(name)}</h2>
+          <div class="group-count">{len(posts)} post(s)</div>
+        </div>
+        <div class="post-list">
+          {' '.join(items)}
+        </div>
+      </article>"""
+
+
+def write_group_page(path: Path, title: str, description: str, groups: dict[str, List[Post]]) -> None:
+    rendered_groups = "\n      ".join(render_group_section(name, posts) for name, posts in groups.items())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        LIST_STYLE.format(
+            title=html.escape(title),
+            description=html.escape(description),
+            groups=rendered_groups,
+        ),
+        encoding="utf-8",
+    )
+
+
+def write_taxonomy_pages(posts: List[Post]) -> None:
+    tag_groups = build_grouped_posts(posts, "tags")
+    category_groups = build_grouped_posts(posts, "categories")
+    write_group_page(
+        TAGS_INDEX,
+        "Tags",
+        "Browse posts grouped by topic tags.",
+        tag_groups,
+    )
+    write_group_page(
+        CATEGORIES_INDEX,
+        "Categories",
+        "Browse posts grouped by categories.",
+        category_groups,
+    )
+
+
 def copy_images_if_needed(posts: List[Post]) -> None:
     for post in posts:
         for match in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", post.body_markdown):
@@ -852,15 +1107,15 @@ def main() -> None:
     explicit = bool(args.markdown)
     if explicit:
         paths = [Path(path).resolve() for path in args.markdown]
-    else:
-        paths = sorted(POSTS_SRC.glob("*.md"))
-
-    posts = [build_post(path) for path in paths]
-    if explicit:
-        unpublished = [post.source_path.name for post in posts if not post.published]
+        explicit_posts = [build_post(path) for path in paths]
+        unpublished = [post.source_path.name for post in explicit_posts if not post.published]
         if unpublished:
             names = ", ".join(unpublished)
             raise SystemExit(f"These files need a front matter 'slug' before publishing: {names}")
+
+    posts = [build_post(path) for path in sorted(POSTS_SRC.glob("*.md"))]
+    if explicit:
+        posts = [post for post in posts if post.published]
     else:
         posts = [post for post in posts if post.published]
 
@@ -871,6 +1126,7 @@ def main() -> None:
         write_post_html(post)
         print(f"Built {post.url} from {post.source_path.name}")
     write_homepage(posts)
+    write_taxonomy_pages(posts)
     print(f"Updated {SITE_INDEX}")
 
 

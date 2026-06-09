@@ -4,6 +4,7 @@ date: 2026-06-09 14:34:51
 slug: vllm-kvcache-grouping
 summary: 整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。
 tags: vLLM; Inference
+categories: vLLM; KVCache
 ---
 
 KVCache 的分组是 HMA 中非常重要的部分，HMA 是为了解决在混合 Attention 模型下的 KVCache 高效管理诞生的技术。其核心在于，通过分组实现两种 Attention 类型对应的 KVCache 共享同一块 Buffer。

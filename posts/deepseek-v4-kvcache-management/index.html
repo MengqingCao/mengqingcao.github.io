@@ -337,6 +337,9 @@ group 5:   cdiv(258, 4) = 65</code></pre>
         <p>具体的实现方法是，当 scheduler 为 <code>num_tokens</code> 个 tokens 去申请 blocks 时，我们会提前将 num_tokens 压缩为 <code>num_tokens // compress_ratio</code> ，这样我们即可在分配 block 的时候，为 compressed kvcache 只分配 1/<code>compress_ratio</code> 倍的 blocks，这样 kvcache 的实际压缩就完成了。 不过，虽然成功在 <code>num_blocks</code> 这一维完成了压缩，但这个带来的影响是 <code>block_id</code> 已经被压缩，因此我们需要在 <code>ModelRunner</code> 侧适配 压缩 position id 以及根据压缩后的 position id 去计算 压缩后的 slot_mapping 的逻辑，具体代码可以参考：<code>vllm_ascend.utils.get_compressed_pos_and_indices</code> 和 <code>vllm_ascend.worker.block_table.MultiGroupBlockTable.compute_slot_mapping</code> 。</p>
         <p>运行时的逻辑实际上和 vLLM GPU 上的逻辑基本一致，这里不做赘述。</p>
         <p>到这里，DeepSeek V4 的基础 KVCache 适配就讲完了，至于 prefix cache 的优化、KVCache Planning 优化等，vLLM 和 vLLM Ascend 都持续在做更多的工作，未完待续...</p>
+        <h2>references</h2>
+        <ul><li>https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf</li></ul>
+        <p>-</p>
         <div class="footer-nav">
           <a class="back-link" href="/">Back Home</a>
           <div class="footer-note">Generated from markdown source.</div>

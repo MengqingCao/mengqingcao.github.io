@@ -4,6 +4,7 @@ date: 2026-06-09 18:00:00
 slug: deepseek-v4-kvcache-management
 summary: 重点分析了 DeepSeek V4 模型在 kvcache 方面的创新点和 vLLM 及 vLLM Ascend 中是如何实现相应的 KVCache 管理的。
 tags: vLLM; Inference; KVCache
+categories: vLLM; KVCache; DeepSeek
 ---
 
 ## DeepSeek V4 中的 kvcache 创新
@@ -115,3 +116,7 @@ okay，了解完这个限制之后，比较显然的就是，c128a 的大小比 
 
 
 到这里，DeepSeek V4 的基础 KVCache 适配就讲完了，至于 prefix cache 的优化、KVCache Planning 优化等，vLLM 和 vLLM Ascend 都持续在做更多的工作，未完待续...
+
+## references
+- https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf
+- https://vllm.ai/blog/2026-04-24-deepseek-v4
