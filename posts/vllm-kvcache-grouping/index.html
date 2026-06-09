@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vLLM 中的几种 KVCache 分组机制 | Mengqing Cao</title>
+  <meta name="description" content="vLLM 中几种 KVCache 分组机制的整理，包括 Uniform KVCacheSpec、UniformTypeSpecs 和 HMA。">
+  <link rel="shortcut icon" href="/img/favicon.ico">
+  <link rel="stylesheet" href="/css/index.css">
+  <style>
+    :root {
+      --page-bg: #f7f8fb;
+      --panel-bg: rgba(255, 255, 255, 0.92);
+      --panel-border: rgba(21, 35, 56, 0.08);
+      --text-main: #1f2933;
+      --text-muted: #5b6472;
+      --accent: #0f6cbd;
+      --accent-soft: #e8f1fb;
+      --shadow: 0 18px 48px rgba(16, 34, 56, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(15, 108, 189, 0.1), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, var(--page-bg) 55%, #f3f4f7 100%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.75;
+    }
+
+    .shell {
+      width: min(980px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 64px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .topnav {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .topnav a,
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 16px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--text-main);
+      text-decoration: none;
+    }
+
+    .topnav a:hover,
+    .back-link:hover {
+      border-color: rgba(15, 108, 189, 0.3);
+      color: var(--accent);
+    }
+
+    .article {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero {
+      padding: 48px 48px 28px;
+      background:
+        linear-gradient(135deg, rgba(15, 108, 189, 0.12), rgba(255, 255, 255, 0.35)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88));
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 12px;
+      margin-bottom: 18px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(32px, 4vw, 52px);
+      line-height: 1.08;
+    }
+
+    .summary {
+      max-width: 760px;
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .meta span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(21, 35, 56, 0.08);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .content {
+      padding: 40px 48px 48px;
+      font-size: 17px;
+    }
+
+    .content h2,
+    .content h3 {
+      margin: 40px 0 14px;
+      line-height: 1.25;
+    }
+
+    .content h2 {
+      font-size: 28px;
+    }
+
+    .content h3 {
+      font-size: 22px;
+    }
+
+    .content p,
+    .content ul,
+    .content ol,
+    .content blockquote,
+    .content pre {
+      margin: 0 0 18px;
+    }
+
+    .content code {
+      padding: 0.12em 0.4em;
+      border-radius: 6px;
+      background: rgba(15, 108, 189, 0.08);
+      color: #0a4e88;
+      font-size: 0.95em;
+    }
+
+    .content pre {
+      overflow-x: auto;
+      padding: 18px 20px;
+      border-radius: 16px;
+      background: #152238;
+      color: #f3f7fb;
+    }
+
+    .content pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .content blockquote {
+      padding: 12px 18px;
+      border-left: 4px solid var(--accent);
+      background: rgba(15, 108, 189, 0.06);
+      color: var(--text-muted);
+      border-radius: 0 12px 12px 0;
+    }
+
+    .content img {
+      display: block;
+      width: 100%;
+      max-width: 860px;
+      margin: 22px auto;
+      border-radius: 18px;
+      border: 1px solid rgba(21, 35, 56, 0.08);
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(18, 38, 63, 0.08);
+    }
+
+    .footer-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid rgba(21, 35, 56, 0.08);
+    }
+
+    .footer-note {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100%, calc(100% - 20px));
+        padding-top: 20px;
+      }
+
+      .hero,
+      .content {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .topbar,
+      .footer-nav {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .summary {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <a class="brand" href="/">Mengqing Cao</a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="/">Home</a>
+        <a href="/tags/">Tags</a>
+        <a href="/categories/">Categories</a>
+      </nav>
+    </div>
+
+    <article class="article">
+      <header class="hero">
+        <div class="eyebrow">vLLM / Inference</div>
+        <h1>vLLM 中的几种 KVCache 分组机制</h1>
+        <p class="summary">整理了 vLLM 在混合 Attention 模型下几种 KVCache 分组方式，以及 HMA 为什么存在、解决了什么问题。</p>
+        <div class="meta">
+          <span>2026-06-09</span>
+          <span>vLLM</span>
+          <span>Inference</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <p>KVCache 的分组是 HMA 中非常重要的部分，HMA 是为了解决在混合 Attention 模型下的 KVCache 高效管理诞生的技术。其核心在于，通过分组实现两种 Attention 类型对应的 KVCache 共享同一块 Buffer。</p>
+        <p>首先统一语言，这一节中，KVCache 类型指不同的 <code>KVCacheSpec</code>，大小指一个 block 占的物理内存字节数，通常为：</p>
+        <pre><code>block_size * num_head * head_dim * sizeof(cache_dtype)</code></pre>
+
+        <h2>统一的 KVCacheSpec 组</h2>
+        <p>每个 Attention 层的 KVCache 完全一致。这里的完全一致是指类型一致、大小一致。这是最广泛、最基础的 KVCache 组，几乎所有的非混合 Attention 模型都属于这一类，典型模型如 Qwen2.5、DeepSeek V3.1 等。</p>
+        <p>这种组中，每一个 attention 层都有一块 kvcache buffer，每个 buffer 上都有 <code>num_gpu_blocks</code> 个 blocks，由 <code>KVCacheManager</code> 统一从 <code>BlockPool</code> 调度即可。</p>
+        <img src="/img/kvcache_grouping/uniform_kvcache.png" alt="统一 KVCacheSpec 组">
+
+        <h2>类型统一的 KVCacheSpec 组</h2>
+        <p>不同 Attention 层，KVCache type 相同，但大小不一样。典型模型有 DeepSeek-V3.2、minicpm 4.1，以及 spec decode 或 MTP 层中的 kv head 数量和主模型不一致的场景。</p>
+        <blockquote>
+          <p>特性 PR：<a href="https://github.com/vllm-project/vllm/pull/25101">https://github.com/vllm-project/vllm/pull/25101</a></p>
+        </blockquote>
+        <p>这种组中，同样是每一个 attention 层都有一块 kvcache buffer，每个 buffer 上都有 <code>num_gpu_blocks</code> 个 blocks，只是每层的 buffer 大小不一致。因此在这种分组策略下，同一个 token 在不同层上分配的 block id 仍然是相同的。</p>
+        <img src="/img/kvcache_grouping/uniform_type_kvcache.png" alt="类型统一的 KVCacheSpec 组">
+
+        <h2>混合 KVCacheSpec 组</h2>
+        <p>不同 Attention 层，KVCache type 不同，大小也不一定一样。典型模型有 Gemma3、Qwen3-Next、Qwen3.5 等。</p>
+        <p>这里就是 HMA 的核心内容了。</p>
+
+        <h3>首先理解为什么有这个问题</h3>
+        <p>让我们站在 Qwen3-Next 还没有 HMA 的时间点上，此时 vLLM 的行为是：给每层分配同样大小的一块 buffer。结合 linear attention 和 full attention 的 kvcache 差异，可以看到这里有明显浪费。对于 linear attention 层来说，每个请求需要的 kvcache 总大小是固定的，只需要固定 <code>N</code> 个 block（N = 1），但系统仍然强行给它分配 <code>NUM_BLOCKS</code> 个 block。</p>
+        <p>而在 Qwen3-Next 中，linear attention 层实际上比 full attention 层还要多两倍，这会进一步放大浪费。</p>
+
+        <h3>UniformKVCacheSpecs 方案分析</h3>
+        <p><code>UniformKVCacheSpecs</code> 的思路乍看很自然：既然某些层需要的 kvcache 更小，那就按需给每层分配不同大小的 kvcache。</p>
+        <p>问题在于，这个机制实际上仍要求每一层的 block 数量相等。因为 vLLM 的 <code>KVCacheCoordinator</code> 中只有一个 block pool，而且当只有一组 kvcache 时，也只有一个 <code>SingleTypeKVCacheManager</code>。这意味着对于一个请求来说，在每一层分配的 block id 是相同的，因此我们想要的“只给 linear attention 层分配一个 block”并不能直接做到。</p>
+        <p>理论上可以通过多 block pool 解决，但这样不仅会带来架构改动，还会引入 prefix cache 场景下 block 预留数量不可预估的问题。保守预留的话，最后又会退化成每层 block 数相同的设计。所以 <code>UniformKVCacheSpecs</code> 并不能很好地解决 hybrid model 中 KVCache 浪费的问题。</p>
+
+        <h3>HMA</h3>
+        <p>首先建立整体认知：HMA 的核心是不同层去共享同一块 buffer、一个 block pool 和一份 block table，从而减少 KVCache 的浪费与碎片化。</p>
+        <p>下图以 Qwen3-Next 为例，直观感受一下 HMA 的样子。普通 full attention 和 linear attention 的层数比例为 1:3，因此 <code>shared_by</code> 中，一层 full attention 层和三层 linear attention 层共享同一块 buffer。达成的效果是：对于一个 token，每个 KVCacheTensor 上会分配四个 block id，shared by 中的各层每层一个。</p>
+        <img src="/img/kvcache_grouping/hybrid_kvcache.png" alt="混合 KVCacheSpec 组">
+
+        <p>vLLM 在探索 HMA 中 kvcache 排布时也经历了几轮微调。本文只介绍当前最新代码。想了解更多背景，可以阅读 vLLM 团队的博客：</p>
+        <p><a href="https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/">Hybrid models as first class citizens in vLLM</a></p>
+
+        <p>HMA 中最重要的两点：</p>
+        <ol>
+          <li>不同类型的 KVCacheSpec 的 page size，也就是一个 block 的物理内存大小，需要对齐。vLLM 当前主要有两种对齐方式：放大 block size 到原来的 <code>x</code> 倍，或者添加一个 pad。</li>
+          <li>不同类型的 kvcache 虽然共享同一个 buffer，但都拥有自己独立的一份内存视图。也就是说，物理内存是同一片，但对物理内存的解读方式不同。</li>
+        </ol>
+
+        <p>HMA 为了兼容更多 attention backend，还做了一个关键工作：将算子支持的 block size 与 KVCacheSpec 的 page size 解耦。具体来说，attention 算子接收到的 block size、block table、slot mapping 等，都是基于算子支持的 block size 计算的；而调度侧仍通过更大的 block size 完成 block 分配。可以把它理解为，调度侧一次性分配了 <code>x</code> 个 kernel 侧的 blocks。这使得更多 attention backend 可以使用 HMA。</p>
+        <p><a href="https://github.com/vllm-project/vllm/pull/24486">[Hybrid]: Decouple Kernel Block Size from KV Page Size</a></p>
+
+        <div class="footer-nav">
+          <a class="back-link" href="/">Back Home</a>
+          <div class="footer-note">Source article integrated from local Hexo draft.</div>
+        </div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
