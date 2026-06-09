@@ -171,6 +171,50 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       font-size: 17px;
     }}
 
+    .toc {{
+      margin: 0 0 30px;
+      padding: 20px 22px;
+      border: 1px solid rgba(21, 35, 56, 0.08);
+      border-radius: 18px;
+      background: rgba(15, 108, 189, 0.04);
+    }}
+
+    .toc-title {{
+      margin: 0 0 12px;
+      color: var(--text-main);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }}
+
+    .toc-links {{
+      display: grid;
+      gap: 10px;
+    }}
+
+    .toc-item,
+    .toc-subitem {{
+      color: var(--text-main);
+      text-decoration: none;
+      line-height: 1.5;
+    }}
+
+    .toc-item {{
+      font-weight: 600;
+    }}
+
+    .toc-subitem {{
+      padding-left: 14px;
+      color: var(--text-muted);
+      font-size: 15px;
+    }}
+
+    .toc-item:hover,
+    .toc-subitem:hover {{
+      color: var(--accent);
+    }}
+
     .content h2,
     .content h3 {{
       margin: 40px 0 14px;
@@ -309,6 +353,7 @@ ARTICLE_STYLE = """<!DOCTYPE html>
       </header>
 
       <div class="content">
+        {toc}
         {content}
         <div class="footer-nav">
           <a class="back-link" href="/">Back Home</a>
@@ -797,6 +842,13 @@ def slugify(name: str) -> str:
     return slug
 
 
+def slugify_heading(text: str) -> str:
+    normalized = re.sub(r"[`*_~\[\]()]", "", text).strip().lower()
+    normalized = re.sub(r"[^\w\u4e00-\u9fff]+", "-", normalized, flags=re.UNICODE)
+    normalized = normalized.strip("-")
+    return normalized or "section"
+
+
 def truncate_text(text: str, limit: int = 120) -> str:
     if len(text) <= limit:
         return text
@@ -828,6 +880,14 @@ def parse_inline(text: str) -> str:
         escaped,
     )
     return escaped
+
+
+def strip_inline_markdown(text: str) -> str:
+    plain = re.sub(r"`([^`]+)`", r"\1", text)
+    plain = re.sub(r"\*\*(.+?)\*\*", r"\1", plain)
+    plain = re.sub(r"\*(.+?)\*", r"\1", plain)
+    plain = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", plain)
+    return plain.strip()
 
 
 def count_indent(line: str) -> int:
@@ -891,9 +951,24 @@ def parse_list(lines: List[str], start: int, indent: int) -> Tuple[str, int]:
     return f"<{tag}>" + "".join(items) + f"</{tag}>", i
 
 
-def render_markdown(body: str) -> str:
+def build_toc(items: List[Tuple[int, str, str]]) -> str:
+    if not items:
+        return ""
+
+    lines = []
+    for level, title, anchor in items:
+        class_name = "toc-subitem" if level >= 3 else "toc-item"
+        lines.append(
+            f'<a class="{class_name}" href="#{html.escape(anchor, quote=True)}">{html.escape(title)}</a>'
+        )
+    return "\n          ".join(lines)
+
+
+def render_markdown(body: str) -> Tuple[str, str]:
     lines = body.splitlines()
     chunks = []
+    toc_items: List[Tuple[int, str, str]] = []
+    heading_counts: dict[str, int] = {}
     i = 0
 
     while i < len(lines):
@@ -917,8 +992,17 @@ def render_markdown(body: str) -> str:
         heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if heading:
             level = len(heading.group(1))
-            title = parse_inline(heading.group(2).strip())
-            chunks.append(f"<h{level}>{title}</h{level}>")
+            raw_title = heading.group(2).strip()
+            title = parse_inline(raw_title)
+            plain_title = strip_inline_markdown(raw_title)
+            anchor_base = slugify_heading(plain_title)
+            heading_counts[anchor_base] = heading_counts.get(anchor_base, 0) + 1
+            anchor = anchor_base
+            if heading_counts[anchor_base] > 1:
+                anchor = f"{anchor_base}-{heading_counts[anchor_base]}"
+            if level in (2, 3):
+                toc_items.append((level, plain_title, anchor))
+            chunks.append(f'<h{level} id="{html.escape(anchor, quote=True)}">{title}</h{level}>')
             i += 1
             continue
 
@@ -959,7 +1043,7 @@ def render_markdown(body: str) -> str:
             i += 1
         chunks.append(f"<p>{parse_inline(' '.join(paragraph_lines))}</p>")
 
-    return "\n        ".join(chunks)
+    return "\n        ".join(chunks), build_toc(toc_items)
 
 
 def build_post(path: Path) -> Post:
@@ -985,12 +1069,20 @@ def build_post(path: Path) -> Post:
 
 
 def write_post_html(post: Post) -> None:
-    content_html = render_markdown(post.body_markdown)
+    content_html, toc_links = render_markdown(post.body_markdown)
     tag_badges = "\n          ".join(f"<span>{html.escape(tag)}</span>" for tag in post.tags)
     if not tag_badges:
         tag_badges = "<span>Post</span>"
     eyebrow = " / ".join(post.tags[:2]) if post.tags else "Writing"
     description = html.escape(post.summary or post.title, quote=True)
+    toc_html = ""
+    if toc_links:
+        toc_html = f"""<section class="toc" aria-labelledby="toc-title">
+          <div class="toc-title" id="toc-title">On This Page</div>
+          <nav class="toc-links" aria-label="Table of contents">
+          {toc_links}
+          </nav>
+        </section>"""
     output = ARTICLE_STYLE.format(
         title=html.escape(post.title),
         description=description,
@@ -998,6 +1090,7 @@ def write_post_html(post: Post) -> None:
         summary=html.escape(post.summary or post.title),
         date_label=html.escape(post.date_label),
         tag_badges=tag_badges,
+        toc=toc_html,
         content=content_html,
     )
     post.output_dir.mkdir(parents=True, exist_ok=True)
