@@ -44,6 +44,11 @@ KVCache 的调度与管理是 vLLM 中非常核心的特性，我们在其他的
 | `popleft` | 弹出队首的第一个 block | None | 第一个队首的 block |
 | `popleft_n` | 弹出队首的前 n 个 block | 需要弹出的 block 数量 n | 队首前 n 个 block 的列表 |
 | `remove` | 从 free 队列中删除 block | 要删除的 block | / |
+| `append` | 向 free 队列中添加 block，放到队尾 | 要添加的 block | / |
+| `append_n` | 向 free 队列中添加 n 个 block，放到队尾 | 要添加的 blocks | / |
+| `prepend_n` | 向 free 队首添加 n 个 block | 要添加的 block | / |
+| `get_all_free_blocks` | 获取所有的 free blocks | / | free blocks list |
+| `iter_blocks_after` | 在 cursor 之后，按驱逐顺序遍历 free blocks | cursor block | / |
 
 
 
